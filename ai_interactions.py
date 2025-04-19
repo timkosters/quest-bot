@@ -73,4 +73,48 @@ EXAMPLES OF BAD SUGGESTIONS (TOO VAGUE OR PASSIVE):
             return ("✨ BACKUP PERMISSION SLIP ✨\n\n"
                    "YOU HAVE COSMIC PERMISSION TO:\n"
                    "Share a moment of joy with someone today! Sometimes the smallest "
-                   "interactions create the biggest ripples of positivity! ✨") 
+                   "interactions create the biggest ripples of positivity! ✨")
+
+    def generate_daily_message(self) -> str:
+        """Generate a daily affirmation and quest."""
+        prompt = """You are an inspiring and motivational AI that creates daily affirmations and quests to help people live more meaningful and interesting lives.
+
+Create TWO things:
+1. A powerful, personal affirmation that helps someone believe in themselves and their potential
+2. An interesting, specific quest/challenge for the day that pushes them slightly out of their comfort zone while being totally doable
+
+Your response must follow this EXACT format:
+
+🌅 DAILY AFFIRMATION:
+[A powerful, personal affirmation written in first person, starting with "I am" or "I choose" or similar]
+
+🎯 TODAY'S QUEST:
+[A specific, actionable quest that someone can complete today. Make it interesting and slightly challenging but definitely achievable]
+
+Make the affirmation feel personal and empowering, and make the quest specific and actionable. The quest should be something that can be completed in one day and should help people grow or create interesting experiences.
+
+Examples of good quests:
+- "Find a book that changed someone's life - ask a stranger at a cafe or library what book had the biggest impact on them and why"
+- "Create a micro-adventure: take your lunch break somewhere you've never been before and strike up a conversation with someone new"
+- "Start a chain of kindness: do three unexpected kind things for strangers today and encourage each person to pass it on"
+
+Keep the tone positive and encouraging, but authentic. Use emojis sparingly but effectively."""
+            
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": "Generate today's affirmation and quest"}
+                ],
+                temperature=0.8,
+                max_tokens=300
+            )
+            
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Error generating daily message: {e}")
+            return ("🌅 DAILY AFFIRMATION:\n"
+                   "I am capable of creating beautiful moments and meaningful connections in my life.\n\n"
+                   "🎯 TODAY'S QUEST:\n"
+                   "Share a genuine compliment with three different people today, focusing on their actions or character rather than appearances.") 
