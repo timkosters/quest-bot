@@ -1,1 +1,1 @@
-worker: python permission_slip_bot.py 
+worker: python quest_bot.py
