@@ -30,7 +30,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     keyboard = [
         [KeyboardButton("/subscribe"), KeyboardButton("/unsubscribe")],
-        [KeyboardButton("/test"), KeyboardButton("/help")]
+        [KeyboardButton("/quest"), KeyboardButton("/help")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
@@ -40,7 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• An interesting quest to make your day more meaningful\n\n"
         "🎯 Use /subscribe to start receiving daily messages\n"
         "❌ Use /unsubscribe to stop receiving messages\n"
-        "🎲 Use /test to try a random permission slip\n"
+        "🎲 Use /quest to get an instant affirmation and quest\n"
         "❓ Use /help to learn more",
         reply_markup=reply_markup
     )
@@ -52,11 +52,11 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         subscribers.add(user_id)
         await update.message.reply_text(
             "🌟 You're subscribed! You'll receive your first affirmation and quest "
-            "tomorrow at 9 AM.\n\nCan't wait? Use /test to get a fun permission slip right now!"
+            "tomorrow at 9 AM.\n\nCan't wait? Use /quest to get a fun permission slip right now!"
         )
     else:
         await update.message.reply_text(
-            "✨ You're already subscribed! Use /test to get a fun permission slip now!"
+            "✨ You're already subscribed! Use /quest to get a fun permission slip now!"
         )
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -73,8 +73,8 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "You're not currently subscribed to daily messages."
         )
 
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a fun, AI-generated permission slip immediately."""
+async def quest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send an affirmation and quest immediately."""
     if not ai:
         await update.message.reply_text("Sorry, the AI service is currently unavailable.")
         return
@@ -83,9 +83,9 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
         permission_slip = ai.generate_permission_slip()
         await update.message.reply_text(permission_slip)
     except Exception as e:
-        logger.error(f"Error generating permission slip: {e}")
+        logger.error(f"Error generating quest: {e}")
         await update.message.reply_text(
-            "Sorry, I couldn't generate a permission slip right now. Please try again later!"
+            "Sorry, I couldn't generate your quest right now. Please try again later!"
         )
 
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -135,7 +135,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /start - Start the bot\n"
         "• /subscribe - Get daily messages\n"
         "• /unsubscribe - Stop daily messages\n"
-        "• /test - Get a fun permission slip\n"
+        "• /quest - Get an instant affirmation and quest\n"
         "• /today - Get today's affirmation and quest\n"
         "• /help - Show this help message"
     )
@@ -151,7 +151,7 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("subscribe", subscribe))
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
-    application.add_handler(CommandHandler("test", test))
+    application.add_handler(CommandHandler("quest", quest))
     application.add_handler(CommandHandler("today", today))
 
     # Set up the daily job (9 AM)

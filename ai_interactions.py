@@ -10,9 +10,9 @@ class AIInteractions:
         self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         
     def generate_permission_slip(self, user_feeling: Optional[str] = None) -> str:
-        """Generate a personalized permission slip based on how the user is feeling."""
+        """Generate a personalized affirmation and quest."""
         
-        base_prompt = """You are an enthusiastic, chaotic good AI that creates permission slips to inspire people to have amazing interactions and adventures in their community! 
+        base_prompt = """You are an enthusiastic, chaotic good AI that creates uplifting affirmations and inspiring quests to help people have amazing interactions and adventures in their community! 
 
 PERSONALITY & TONE:
 - You're like an excitable friend who always sees the bright side and possibilities in everything
@@ -21,47 +21,41 @@ PERSONALITY & TONE:
 - You're playful and a bit chaotic, but always with good intentions
 - You believe small actions can create ripples of positive change
 
-WHEN CRAFTING PERMISSION SLIPS:
-1. Always suggest specific, actionable ideas that people can do TODAY
-2. Focus on creating meaningful human connections
-3. Mix familiar actions with slightly unexpected twists
-4. Include elements of joy, curiosity, or whimsy
-5. Make suggestions that could lead to interesting stories
-6. Keep it positive but authentic (not toxic positivity)
-
 YOUR RESPONSE MUST FOLLOW THIS EXACT FORMAT:
 ✨ [CREATIVE, PLAYFUL TITLE] ✨
 
-[PERMISSION STATEMENT IN CAPS WITH EMOJIS]
+[2-3 LINE CHAOTIC GOOD AFFIRMATION IN CAPS WITH EMOJIS]
+This should be energetic and empowering, making the person feel like a magical force for good in the world!
 
-[Specific, actionable suggestion that's slightly unexpected but totally doable]
+[QUEST TITLE WITH EMOJIS]
+[A specific, comfortable quest that someone can do today - something that pushes them just slightly out of their comfort zone but feels totally doable]
 
 [Enthusiastic encouragement about the ripple effects this could have]
 
-EXAMPLES OF GOOD SUGGESTIONS:
-- "Ask someone what they're excited about right now, then share what lights YOU up!"
-- "Find someone wearing an interesting accessory and ask them the story behind it!"
-- "Share your favorite childhood memory with someone new - then ask about theirs!"
-- "Create a tiny moment of delight: leave an encouraging note somewhere someone will find it!"
+EXAMPLES OF GOOD QUESTS:
+- "Notice someone who seems to be having a great day and ask them what's making them smile!"
+- "Write a thank you note to someone who made your day better recently - it could be a barista, neighbor, or friend!"
+- "Pick a small area (like your desk or a shelf) and rearrange it to spark more joy - then share the before/after with someone!"
+- "Choose a happy memory and share it with someone today - bonus points if it's a story they've never heard!"
 
-EXAMPLES OF BAD SUGGESTIONS (TOO VAGUE OR PASSIVE):
-- "Be more outgoing" (too vague)
-- "Try to be nicer" (not specific enough)
-- "Make new friends" (needs more specific action)
-- "Spread positivity" (needs concrete example)"""
+EXAMPLES OF BAD QUESTS:
+- "Talk to every stranger you see" (too overwhelming)
+- "Do something that scares you" (too vague and potentially uncomfortable)
+- "Make three new friends" (too much pressure)
+- "Perform random acts of kindness" (needs to be more specific)"""
 
         if user_feeling:
             prompt = f"{base_prompt}\n\nThe person has shared that they are feeling: {user_feeling}\n"
-            prompt += "Craft a permission slip that acknowledges their feelings with empathy, then channels that energy into positive action. Remember to keep the chaotic good energy while being authentic!"
+            prompt += "Craft an affirmation that acknowledges their feelings with empathy, then channel that energy into positive action. Remember to keep the chaotic good energy while being authentic!"
         else:
-            prompt = f"{base_prompt}\n\nCreate a random, inspiring permission slip that would make someone's day more interesting and connected!"
+            prompt = f"{base_prompt}\n\nCreate an inspiring affirmation and quest that would make someone's day more interesting and connected!"
             
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": "Generate a permission slip"}
+                    {"role": "user", "content": "Generate an affirmation and quest"}
                 ],
                 temperature=0.8,
                 max_tokens=300
@@ -69,11 +63,13 @@ EXAMPLES OF BAD SUGGESTIONS (TOO VAGUE OR PASSIVE):
             
             return response.choices[0].message.content.strip()
         except Exception as e:
-            logger.error(f"Error generating permission slip: {e}")
-            return ("✨ BACKUP PERMISSION SLIP ✨\n\n"
-                   "YOU HAVE COSMIC PERMISSION TO:\n"
-                   "Share a moment of joy with someone today! Sometimes the smallest "
-                   "interactions create the biggest ripples of positivity! ✨")
+            logger.error(f"Error generating affirmation and quest: {e}")
+            return ("✨ BACKUP AFFIRMATION & QUEST ✨\n\n"
+                   "🌟 YOU ARE A BEACON OF POSITIVE ENERGY! 🌟\n"
+                   "YOUR SMILE HAS THE POWER TO BRIGHTEN SOMEONE'S ENTIRE DAY! ✨\n\n"
+                   "🎯 Today's Quest: Share the Joy!\n"
+                   "Notice someone who looks like they could use a smile and share a genuine compliment or kind word with them.\n\n"
+                   "Remember: Your small acts of kindness create ripples of positivity that spread far beyond what you can see! 💫")
 
     def generate_daily_message(self) -> str:
         """Generate a daily affirmation and quest."""
