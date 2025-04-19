@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -103,9 +103,9 @@ def main():
     application.add_handler(CommandHandler("subscribe", subscribe))
     application.add_handler(CommandHandler("test", test))
 
-    # Schedule daily permission slips
+    # Schedule daily permission slips at 9:00 AM
     job_queue = application.job_queue
-    job_queue.run_daily(send_daily_permission_slips, time=datetime.strptime('09:00', '%H:%M').time())
+    job_queue.run_daily(send_daily_permission_slips, time=datetime.time(hour=9, minute=0))
 
     # Start the Bot
     logger.info("Bot started! Ready to send permission slips!")
