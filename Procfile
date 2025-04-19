@@ -1,0 +1,1 @@
+worker: python permission_slip_bot.py 
