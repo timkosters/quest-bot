@@ -58,7 +58,7 @@ EXAMPLES OF BAD SUGGESTIONS (TOO VAGUE OR PASSIVE):
             
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": "Generate a permission slip"}
@@ -102,7 +102,7 @@ Keep the tone positive and encouraging, but authentic. Use emojis sparingly but 
             
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": "Generate today's affirmation and quest"}
