@@ -35,13 +35,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
         "✨ Welcome to Daily Quests & Affirmations! ✨\n\n"
-        "🌅 Every morning at 9 AM, you'll receive:\n"
-        "• A powerful personal affirmation to start your day\n"
-        "• An interesting quest to make your day more meaningful\n\n"
-        "🎯 Use /subscribe to start receiving daily messages\n"
-        "❌ Use /unsubscribe to stop receiving messages\n"
-        "🎲 Use /quest to get an instant affirmation and quest\n"
-        "❓ Use /help to learn more",
+        "I'm your friendly companion for creating more mindful, joyful moments in your day. "
+        "Think of me as your enthusiastic friend who's here to help you notice the magic in everyday moments! 🌟\n\n"
+        "🌅 Every morning at 9 AM, subscribers receive:\n"
+        "• A powerful personal affirmation to boost your spirit\n"
+        "• A gentle quest to help you find moments of joy and presence\n\n"
+        "These aren't about big changes - they're about finding little pockets of magic in your regular day. "
+        "Like pausing to feel the sunlight on your face, or taking a moment to really notice the world around you. ✨\n\n"
+        "Commands:\n"
+        "🎯 /subscribe - Get daily messages at 9 AM\n"
+        "🎲 /quest - Get an instant affirmation and quest\n"
+        "❌ /unsubscribe - Stop daily messages\n"
+        "❓ /help - Show more information",
         reply_markup=reply_markup
     )
 
