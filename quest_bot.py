@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from db_operations import EdgeOSDB
+from ai_interactions import AIInteractions
 
 # Load environment variables
 load_dotenv()
@@ -19,19 +20,56 @@ logger = logging.getLogger(__name__)
 # Admin user ID (your Telegram ID)
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', '0'))
 
+# Initialize AI
+try:
+    ai = AIInteractions()
+except Exception as e:
+    logger.error(f"Failed to initialize AI: {e}")
+    ai = None
+
 # Conversation states
 SEND_MESSAGE = 0
 SEND_WELCOME = 1
 SELECT_POPUP = 2
 COMPOSE_WELCOME = 3
+FEELING_INPUT = 4
 
 # Permission slip messages
 PERMISSION_SLIPS = [
-    "🎟️ Today's Permission Slip 🎟️\n\nYou have permission to:\n- Approach someone new and ask them about their favorite book",
-    "🎟️ Today's Permission Slip 🎟️\n\nYou have permission to:\n- Compliment someone's outfit and ask where they got it",
-    "🎟️ Today's Permission Slip 🎟️\n\nYou have permission to:\n- Ask someone about their favorite travel destination",
-    "🎟️ Today's Permission Slip 🎟️\n\nYou have permission to:\n- Share a fun fact about yourself with someone new",
-    "🎟️ Today's Permission Slip 🎟️\n\nYou have permission to:\n- Ask someone about their favorite hobby"
+    "✨ COSMIC PERMISSION SLIP OF THE DAY! ✨\n\n"
+    "🌟 YOU HAVE DIVINE PERMISSION TO:\n"
+    "Be absolutely, unashamedly CURIOUS! Go find someone new and ask them about their wildest dream. "
+    "Their answer might just change your life! Remember: Every stranger is just a friend you haven't met yet! 🚀",
+
+    "🌈 TODAY'S CHAOS-APPROVED PERMISSION SLIP! 🌈\n\n"
+    "💫 YOU ARE HEREBY GRANTED PERMISSION TO:\n"
+    "Radiate pure, unfiltered joy! Find someone wearing something that makes you smile and tell them! "
+    "Your compliment might be the spark that ignites their whole day! SPREAD THE HAPPINESS! ✨",
+
+    "🎭 YOUR MAGICAL PERMISSION SLIP HAS ARRIVED! 🎭\n\n"
+    "🔮 THE UNIVERSE GRANTS YOU PERMISSION TO:\n"
+    "Be gloriously, magnificently BOLD! Share a passion project with someone new - "
+    "let your enthusiasm be contagious! Your energy could inspire a revolution! 🌟",
+
+    "⚡️ PERMISSION SLIP OF INFINITE POSSIBILITIES! ⚡️\n\n"
+    "🎪 YOU ARE COSMICALLY AUTHORIZED TO:\n"
+    "Create unexpected connections! Find someone who looks interesting and share your favorite life-changing book/movie/song. "
+    "You might just start a chain reaction of awesomeness! 🎨",
+
+    "🌟 YOUR CHAOS-POWERED PERMISSION SLIP! 🌟\n\n"
+    "🎯 YOU HAVE SUPERNATURAL PERMISSION TO:\n"
+    "Be extraordinarily KIND! Do something unexpectedly nice for someone you've never talked to. "
+    "Small acts of kindness can cascade into WAVES of positive change! 💫",
+
+    "🎪 YOUR PERMISSION SLIP OF PURE POTENTIAL! 🎪\n\n"
+    "🎭 YOU ARE OFFICIALLY EMPOWERED TO:\n"
+    "Break the routine! Start a conversation about something that lights your soul on fire. "
+    "Your passion could be the catalyst someone else needs! GO FORTH AND INSPIRE! ⚡️",
+
+    "🌈 YOUR DAILY DOSE OF PERMISSION MAGIC! 🌈\n\n"
+    "✨ YOU HAVE COSMIC CLEARANCE TO:\n"
+    "Be delightfully RANDOM! Share a fascinating fact or story with someone new. "
+    "The universe works in mysterious ways - your random connection could change everything! 🚀"
 ]
 
 # Store subscribers
@@ -61,22 +99,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
-            "Welcome to Permission Slip Bot Admin Panel! 🎟️\n\n"
-            "Admin Commands:\n"
-            "/admin - Show admin panel\n"
-            "/broadcast - Send custom message to subscribers\n"
-            "/stats - Show subscriber statistics\n"
-            "/test - Send test permission slip\n"
-            "/welcome_citizens - Send welcome messages to popup citizens\n"
-            "/view_popups - View available popup cities",
+            "✨ GREETINGS, MASTER OF CHAOS AND COMMUNITY! ✨\n\n"
+            "Your powers include:\n"
+            "🎭 /admin - Command your cosmic dashboard\n"
+            "📢 /broadcast - Send waves of inspiration to all\n"
+            "📊 /stats - Glimpse into the community soul\n"
+            "🎪 /test - Release a test permission slip\n"
+            "🌟 /welcome_citizens - Embrace new community members\n"
+            "🏙️ /view_popups - Explore the realms of possibility",
             reply_markup=reply_markup
         )
     else:
+        keyboard = [
+            [KeyboardButton("/subscribe"), KeyboardButton("/feeling")],
+            [KeyboardButton("/help")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
-            "Welcome to Permission Slip Bot! 🎟️\n\n"
-            "Every day, you'll receive a special permission slip that gives you "
-            "the courage to interact with someone new in your community.\n\n"
-            "Use /subscribe to start receiving daily permission slips!"
+            "✨ WELCOME TO THE PERMISSION SLIP BOT! ✨\n\n"
+            "🌟 Get ready for daily doses of encouragement, inspiration, and permission to be "
+            "your most authentic, amazing self!\n\n"
+            "Every day, you'll receive a special permission slip that empowers you to create "
+            "magical connections in your community! 🚀\n\n"
+            "🎭 Use /subscribe to start your journey of endless possibilities!\n"
+            "💫 Use /feeling to share how you're feeling and get a personalized permission slip!",
+            reply_markup=reply_markup
         )
 
 async def view_popups(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -271,9 +318,12 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Current subscribers: {len(subscribers)}")
     
     await update.message.reply_text(
-        "✅ You're now subscribed to daily permission slips!\n\n"
-        "You'll receive a new permission slip every day at 9:00 AM.\n"
-        "Use /test to get today's permission slip right now!"
+        "🎉 CONGRATULATIONS, BRAVE SOUL! 🎉\n\n"
+        "You've just joined a community of amazing humans dedicated to creating "
+        "magical moments and connections! ✨\n\n"
+        "🌟 Every day at 9:00 AM, you'll receive a new permission slip - "
+        "your cosmic authorization to spread joy, curiosity, and positive chaos!\n\n"
+        "Can't wait? Use /test to get today's permission slip right now! 🚀"
     )
 
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -316,6 +366,39 @@ async def send_daily_permission_slips(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Failed to send message to {user_id}: {e}")
 
+async def feeling(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ask user how they're feeling."""
+    await update.message.reply_text(
+        "✨ GREETINGS, WONDERFUL HUMAN! ✨\n\n"
+        "How are you feeling right now? Share your thoughts, emotions, or state of mind, "
+        "and I'll craft a special permission slip just for you! 🌟\n\n"
+        "(Or use /cancel to keep it random!)"
+    )
+    return FEELING_INPUT
+
+async def handle_feeling(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate a personalized permission slip based on user's feeling."""
+    if not ai:
+        # Fall back to random permission slip if AI isn't available
+        slip = PERMISSION_SLIPS[datetime.now().day % len(PERMISSION_SLIPS)]
+    else:
+        slip = ai.generate_permission_slip(update.message.text)
+    
+    await update.message.reply_text(slip)
+    return ConversationHandler.END
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text(
+        "✨ BEHOLD, THE COSMIC GUIDE! ✨\n\n"
+        "🌟 Available Commands:\n"
+        "/subscribe - Join the daily permission slip adventure\n"
+        "/feeling - Share your feelings for a personalized permission slip\n"
+        "/help - Show this magical guide\n\n"
+        "Every day at 9:00 AM, you'll receive a special permission slip to inspire "
+        "connection and joy in your community! ✨"
+    )
+
 def main():
     """Start the bot."""
     # Create the Application and pass it your bot's token
@@ -328,6 +411,7 @@ def main():
     application.add_handler(CommandHandler("admin", admin))
     application.add_handler(CommandHandler("stats", stats))
     application.add_handler(CommandHandler("view_popups", view_popups))
+    application.add_handler(CommandHandler("help", help_command))
 
     # Add conversation handler for broadcast
     broadcast_handler = ConversationHandler(
@@ -349,6 +433,16 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)]
     )
     application.add_handler(welcome_handler)
+
+    # Add conversation handler for feelings
+    feeling_handler = ConversationHandler(
+        entry_points=[CommandHandler("feeling", feeling)],
+        states={
+            FEELING_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_feeling)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    application.add_handler(feeling_handler)
 
     # Schedule daily permission slips at 9:00 AM
     job_queue = application.job_queue
