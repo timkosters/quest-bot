@@ -2,8 +2,9 @@ import os
 import logging
 from datetime import datetime, time
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
+from db_operations import EdgeOSDB
 
 # Load environment variables
 load_dotenv()
@@ -16,10 +17,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Admin user ID (your Telegram ID)
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', '0'))  # Set this in Railway env vars
+ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', '0'))
 
 # Conversation states
 SEND_MESSAGE = 0
+SEND_WELCOME = 1
+SELECT_POPUP = 2
+COMPOSE_WELCOME = 3
 
 # Permission slip messages
 PERMISSION_SLIPS = [
@@ -33,6 +37,13 @@ PERMISSION_SLIPS = [
 # Store subscribers
 subscribers = set()
 
+# Initialize EdgeOS DB connection
+try:
+    edge_db = EdgeOSDB()
+except Exception as e:
+    logger.error(f"Failed to initialize EdgeOS DB connection: {e}")
+    edge_db = None
+
 def is_admin(user_id: int) -> bool:
     """Check if the user is an admin."""
     return user_id == ADMIN_USER_ID
@@ -42,19 +53,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if is_admin(user_id):
-        # Show admin keyboard
+        # Show admin keyboard with EdgeOS integration
         keyboard = [
             [KeyboardButton("/admin"), KeyboardButton("/broadcast")],
-            [KeyboardButton("/stats"), KeyboardButton("/test")]
+            [KeyboardButton("/stats"), KeyboardButton("/test")],
+            [KeyboardButton("/welcome_citizens"), KeyboardButton("/view_popups")]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
             "Welcome to Permission Slip Bot Admin Panel! 🎟️\n\n"
             "Admin Commands:\n"
             "/admin - Show admin panel\n"
-            "/broadcast - Send custom message to all subscribers\n"
+            "/broadcast - Send custom message to subscribers\n"
             "/stats - Show subscriber statistics\n"
-            "/test - Send test permission slip",
+            "/test - Send test permission slip\n"
+            "/welcome_citizens - Send welcome messages to popup citizens\n"
+            "/view_popups - View available popup cities",
             reply_markup=reply_markup
         )
     else:
@@ -64,6 +78,112 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "the courage to interact with someone new in your community.\n\n"
             "Use /subscribe to start receiving daily permission slips!"
         )
+
+async def view_popups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show available popup cities."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Sorry, this command is for administrators only.")
+        return
+
+    if not edge_db:
+        await update.message.reply_text("EdgeOS database connection not available.")
+        return
+
+    popups = edge_db.get_popups()
+    if not popups:
+        await update.message.reply_text("No active popup cities found.")
+        return
+
+    popup_text = "Available Popup Cities:\n\n"
+    for popup in popups:
+        popup_text += f"🏙️ {popup['name']}\n"
+        popup_text += f"ID: {popup['id']}\n"
+        if popup.get('description'):
+            popup_text += f"Description: {popup['description']}\n"
+        popup_text += "\n"
+
+    await update.message.reply_text(popup_text)
+
+async def welcome_citizens(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start the welcome message flow."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Sorry, this command is for administrators only.")
+        return
+
+    if not edge_db:
+        await update.message.reply_text("EdgeOS database connection not available.")
+        return
+
+    popups = edge_db.get_popups()
+    if not popups:
+        await update.message.reply_text("No active popup cities found.")
+        return
+
+    keyboard = []
+    for popup in popups:
+        keyboard.append([InlineKeyboardButton(
+            popup['name'], 
+            callback_data=f"popup_{popup['id']}"
+        )])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "Select a popup city to send welcome messages:",
+        reply_markup=reply_markup
+    )
+    return SELECT_POPUP
+
+async def popup_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle popup selection."""
+    query = update.callback_query
+    await query.answer()
+    
+    popup_id = query.data.replace("popup_", "")
+    context.user_data['selected_popup'] = popup_id
+    
+    await query.message.reply_text(
+        "Please compose your welcome message. You can use these placeholders:\n"
+        "{first_name} - Citizen's first name\n"
+        "{last_name} - Citizen's last name\n"
+        "{email} - Citizen's email\n\n"
+        "Type your message now:"
+    )
+    return COMPOSE_WELCOME
+
+async def send_welcome_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send welcome messages to citizens."""
+    message_template = update.message.text
+    popup_id = context.user_data.get('selected_popup')
+    
+    if not popup_id:
+        await update.message.reply_text("Error: No popup city selected.")
+        return ConversationHandler.END
+    
+    citizens = edge_db.get_popup_citizens(popup_id)
+    success_count = 0
+    total_count = len(citizens)
+    
+    for citizen in citizens:
+        telegram_id = edge_db.get_citizen_telegram(citizen['id'])
+        if telegram_id:
+            try:
+                # Format message with citizen's info
+                message = message_template.format(
+                    first_name=citizen.get('first_name', ''),
+                    last_name=citizen.get('last_name', ''),
+                    email=citizen.get('email', '')
+                )
+                await context.bot.send_message(chat_id=telegram_id, text=message)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to send welcome message to {citizen['id']}: {e}")
+    
+    await update.message.reply_text(
+        f"Welcome messages sent!\n"
+        f"Successfully sent: {success_count}/{total_count} messages\n"
+        f"Failed: {total_count - success_count} messages"
+    )
+    return ConversationHandler.END
 
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin panel command."""
@@ -207,16 +327,28 @@ def main():
     application.add_handler(CommandHandler("test", test))
     application.add_handler(CommandHandler("admin", admin))
     application.add_handler(CommandHandler("stats", stats))
+    application.add_handler(CommandHandler("view_popups", view_popups))
 
     # Add conversation handler for broadcast
-    conv_handler = ConversationHandler(
+    broadcast_handler = ConversationHandler(
         entry_points=[CommandHandler("broadcast", broadcast)],
         states={
             SEND_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast)]
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
-    application.add_handler(conv_handler)
+    application.add_handler(broadcast_handler)
+
+    # Add conversation handler for welcome messages
+    welcome_handler = ConversationHandler(
+        entry_points=[CommandHandler("welcome_citizens", welcome_citizens)],
+        states={
+            SELECT_POPUP: [CallbackQueryHandler(popup_selected, pattern=r"^popup_")],
+            COMPOSE_WELCOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_welcome_messages)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    application.add_handler(welcome_handler)
 
     # Schedule daily permission slips at 9:00 AM
     job_queue = application.job_queue
