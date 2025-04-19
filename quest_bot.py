@@ -105,7 +105,7 @@ def main():
 
     # Schedule daily permission slips at 9:00 AM
     job_queue = application.job_queue
-    job_queue.run_daily(send_daily_permission_slips, time=datetime.time(hour=9, minute=0))
+    job_queue.run_daily(send_daily_permission_slips, time=time(9, 0))
 
     # Start the Bot
     logger.info("Bot started! Ready to send permission slips!")
