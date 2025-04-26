@@ -21,19 +21,22 @@ class QuestBotDB:
             self.engine = None
 
     def create_subscribers_table(self):
-        """Create the subscribers table if it doesn't exist."""
+        """Create the subscribers table if it doesn't exist, with all required columns."""
         if not hasattr(self, 'engine') or not self.engine:
             logger.warning("No database connection - cannot create subscribers table")
             return False
-            
         try:
             query = text("""
                 CREATE TABLE IF NOT EXISTS subscribers (
                     user_id BIGINT PRIMARY KEY,
-                    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    mood TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    username TEXT,
+                    quests_completed INTEGER DEFAULT 0
                 )
             """)
-            
             with self.engine.connect() as conn:
                 conn.execute(query)
                 conn.commit()
@@ -41,6 +44,32 @@ class QuestBotDB:
         except Exception as e:
             logger.error(f"Error creating subscribers table: {e}")
             return False
+
+    def ensure_subscribers_schema(self):
+        """Ensure all required columns exist in the subscribers table. Adds any missing columns."""
+        required_columns = {
+            'mood': "TEXT",
+            'first_name': "TEXT",
+            'last_name': "TEXT",
+            'username': "TEXT",
+            'quests_completed': "INTEGER DEFAULT 0"
+        }
+        if not hasattr(self, 'engine') or not self.engine:
+            logger.warning("No database connection - cannot check subscribers schema")
+            return
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='subscribers'"))
+                existing_columns = {row[0] for row in result}
+                for col, coltype in required_columns.items():
+                    if col not in existing_columns:
+                        logger.info(f"Adding missing column '{col}' to subscribers table.")
+                        alter = text(f"ALTER TABLE subscribers ADD COLUMN {col} {coltype}")
+                        conn.execute(alter)
+                        conn.commit()
+        except Exception as e:
+            logger.error(f"Error ensuring subscribers schema: {e}")
+            logger.error(traceback.format_exc())
 
     def add_subscriber(self, user_id: int, first_name: str = None, last_name: str = None, username: str = None) -> tuple[bool, str | None]:
         """Add a new subscriber. Returns (success, error_message)."""
