@@ -114,7 +114,6 @@ async def quest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_name = user.last_name if hasattr(user, 'last_name') else None
     username = user.username if hasattr(user, 'username') else None
     db.update_user_info(user_id, first_name, last_name, username)
-    db.increment_quests_completed(user_id)
 
     try:
         mood = db.get_mood(user_id) or "Surprise me"
@@ -237,6 +236,38 @@ async def mood_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Your mood is now set to: {mood}", reply_markup=ReplyKeyboardMarkup([["/quest", "/setmood"]], resize_keyboard=True))
     return ConversationHandler.END
 
+async def quest_completed(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mark the user's quest as completed and increment their counter. Works as a reply or standalone."""
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name
+    last_name = user.last_name if hasattr(user, 'last_name') else None
+    username = user.username if hasattr(user, 'username') else None
+    db.update_user_info(user_id, first_name, last_name, username)
+
+    is_reply = update.message.reply_to_message is not None
+    # Optionally: Check if the replied-to message was sent by the bot and contains a quest (could check for emoji or keywords)
+    if is_reply and update.message.reply_to_message.from_user.id == context.bot.id:
+        # You could add further checks here for quest/affirmation keywords if desired
+        special = True
+    else:
+        special = False
+
+    db.increment_quests_completed(user_id)
+    leaderboard = db.get_leaderboard(limit=20)
+    new_total = 0
+    for row in leaderboard:
+        if row[0] == user_id:
+            new_total = row[3] or 0
+            break
+
+    if special:
+        await update.message.reply_text(f"🔥 You completed a quest you received from me! That's <b>{new_total}</b> total quests! Legendary!", parse_mode="HTML")
+    else:
+        await update.message.reply_text(f"🎉 Quest completed! You have now completed <b>{new_total}</b> quests!", parse_mode="HTML")
+    if new_total > 0 and leaderboard and leaderboard[0][0] == user_id:
+        await update.message.reply_text("🏆 You're at the top of the leaderboard! Keep it up!")
+
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Display the top users by quests completed."""
     if not db:
@@ -268,6 +299,7 @@ def main():
     application.add_handler(CommandHandler("today", today))
     application.add_handler(CommandHandler("dbstatus", db_status))
     application.add_handler(CommandHandler("leaderboard", leaderboard))
+    application.add_handler(CommandHandler("quest_completed", quest_completed))
 
     # Mood selection conversation handler
     mood_conv_handler = ConversationHandler(
