@@ -254,17 +254,14 @@ async def quest_completed(update: Update, context: ContextTypes.DEFAULT_TYPE):
         special = False
 
     db.increment_quests_completed(user_id)
-    leaderboard = db.get_leaderboard(limit=20)
-    new_total = 0
-    for row in leaderboard:
-        if row[0] == user_id:
-            new_total = row[3] or 0
-            break
+    new_total = db.get_quests_completed(user_id)
 
     if special:
         await update.message.reply_text(f"🔥 You completed a quest you received from me! That's <b>{new_total}</b> total quests! Legendary!", parse_mode="HTML")
     else:
         await update.message.reply_text(f"🎉 Quest completed! You have now completed <b>{new_total}</b> quests!", parse_mode="HTML")
+
+    leaderboard = db.get_leaderboard(limit=1)
     if new_total > 0 and leaderboard and leaderboard[0][0] == user_id:
         await update.message.reply_text("🏆 You're at the top of the leaderboard! Keep it up!")
 

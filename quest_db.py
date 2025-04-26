@@ -112,6 +112,22 @@ class QuestBotDB:
             logger.error(traceback.format_exc())
             return False
 
+    def get_quests_completed(self, user_id: int) -> int:
+        """Get the number of quests completed by a user."""
+        if not hasattr(self, 'engine') or not self.engine:
+            logger.warning("No database connection - cannot fetch quests_completed")
+            return 0
+        try:
+            query = text("SELECT quests_completed FROM subscribers WHERE user_id = :user_id")
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {"user_id": user_id})
+                row = result.fetchone()
+                return row[0] if row and row[0] is not None else 0
+        except Exception as e:
+            logger.error(f"Error fetching quests_completed for {user_id}: {e}")
+            logger.error(traceback.format_exc())
+            return 0
+
     def get_leaderboard(self, limit: int = 10):
         """Return a list of top users by quests_completed."""
         if not hasattr(self, 'engine') or not self.engine:
@@ -123,7 +139,7 @@ class QuestBotDB:
                 FROM subscribers
                 ORDER BY quests_completed DESC NULLS LAST, user_id ASC
                 LIMIT :limit
-            """)
+            """)    
             with self.engine.connect() as conn:
                 result = conn.execute(query, {"limit": limit})
                 return result.fetchall()
