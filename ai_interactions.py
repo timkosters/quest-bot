@@ -46,7 +46,27 @@ EXAMPLES OF BAD QUESTS:
 - "Change your routine" (too vague)
 - "Be more mindful all day" (not specific enough)"""
 
+        # --- MOOD-BASED PROMPT OVERRIDES ---
         if user_feeling:
+            mood = user_feeling.strip().lower()
+        else:
+            mood = None
+
+        if mood == "unhinged":
+            prompt = (
+                f"{base_prompt}\n\n"
+                "FOR THIS QUEST, WRITE EVERYTHING IN ALL CAPS. MAKE IT FEEL UNPREDICTABLE, CHAOTIC GOOD, AND SURPRISING, BUT STILL SAFE AND POSITIVE. "
+                "THE AFFIRMATION AND QUEST SHOULD BOTH FEEL LIKE A WILD, JOYFUL SURPRISE. USE MORE ENERGETIC LANGUAGE THAN USUAL."
+            )
+        elif mood == "unhinged maximum":
+            prompt = (
+                f"{base_prompt}\n\n"
+                "FOR THIS QUEST, WRITE EVERYTHING IN ALL CAPS. INSERT EMOJIS BETWEEN EVERY WORD OR EVERY FEW WORDS. "
+                "MAKE THE TEXT FULLY CHAOTIC GOOD: ABSURD, WILD, AND UNPREDICTABLE, BUT NEVER HARMFUL. "
+                "THE AFFIRMATION AND QUEST SHOULD FEEL LIKE A SUPERNOVA OF POSITIVITY, RANDOMNESS, AND FUN. "
+                "DON'T HOLD BACK ON THE ENERGY OR THE WEIRDNESS."
+            )
+        elif user_feeling:
             prompt = f"{base_prompt}\n\nThe person has shared that they are feeling: {user_feeling}\n"
             prompt += "Craft an affirmation that acknowledges their feelings with empathy, then suggest a gentle moment of presence that might complement their current energy. Remember to keep the warm, mindful tone while being authentic!"
         else:
