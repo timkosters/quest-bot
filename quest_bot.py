@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, time
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from ai_interactions import AIInteractions
 from quest_db import QuestBotDB
 
@@ -59,14 +59,15 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     if not db.is_subscribed(user_id):
-        if db.add_subscriber(user_id):
+        success, error = db.add_subscriber(user_id)
+        if success:
             await update.message.reply_text(
                 "🌟 You're subscribed! You'll receive your first affirmation and quest "
                 "tomorrow at 9 AM.\n\nCan't wait? Use /quest to get a fun permission slip right now!"
             )
         else:
             await update.message.reply_text(
-                "Sorry, there was an error subscribing you. Please try again later!"
+                f"Sorry, there was an error subscribing you. Please try again later!\n\nError: {error}"
             )
     else:
         await update.message.reply_text(
@@ -102,7 +103,9 @@ async def quest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        permission_slip = ai.generate_permission_slip()
+        user_id = update.effective_user.id
+        mood = db.get_mood(user_id) or "Surprise me"
+        permission_slip = ai.generate_permission_slip(mood)
         await update.message.reply_text(permission_slip)
     except Exception as e:
         logger.error(f"Error generating quest: {e}")
@@ -137,9 +140,10 @@ async def send_daily_messages(context: ContextTypes.DEFAULT_TYPE):
             logger.info("No subscribers to send messages to")
             return
 
-        daily_message = ai.generate_daily_message()
         for user_id in subscribers:
             try:
+                mood = db.get_mood(user_id) or "Surprise me"
+                daily_message = ai.generate_permission_slip(mood)
                 await context.bot.send_message(chat_id=user_id, text=daily_message)
                 logger.info(f"Sent daily message to user {user_id}")
             except Exception as e:
@@ -191,6 +195,29 @@ async def db_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Error connecting to database. Please try again later!"
         )
 
+# --- Mood Selection Handlers ---
+MOODS = ["Creative", "Physical", "Social", "Reflection", "Unhinged", "Unhinged Maximum", "Surprise me"]
+MOOD_KEYBOARD = [[KeyboardButton(mood)] for mood in MOODS]
+
+async def setmood(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Let the user choose their quest mood."""
+    reply_markup = ReplyKeyboardMarkup(MOOD_KEYBOARD, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        "Choose your quest mood! This will influence the style of your daily and instant quests:",
+        reply_markup=reply_markup
+    )
+    return 1
+
+async def mood_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    mood = update.message.text
+    if mood not in MOODS:
+        await update.message.reply_text("Please choose a mood using the buttons.")
+        return 1
+    db.set_mood(user_id, mood)
+    await update.message.reply_text(f"Your mood is now set to: {mood}", reply_markup=ReplyKeyboardMarkup([["/quest", "/setmood"]], resize_keyboard=True))
+    return ConversationHandler.END
+
 def main():
     """Start the bot."""
     # Create the Application
@@ -205,6 +232,16 @@ def main():
     application.add_handler(CommandHandler("today", today))
     application.add_handler(CommandHandler("dbstatus", db_status))
 
+    # Mood selection conversation handler
+    mood_conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("setmood", setmood)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, mood_selection)]
+        },
+        fallbacks=[]
+    )
+    application.add_handler(mood_conv_handler)
+
     # Set up the daily job (9 AM)
     job_queue = application.job_queue
     job_queue.run_daily(
@@ -215,6 +252,7 @@ def main():
 
     # Start the Bot
     application.run_polling()
+
 
 if __name__ == '__main__':
     main() 
