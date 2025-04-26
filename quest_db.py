@@ -42,25 +42,95 @@ class QuestBotDB:
             logger.error(f"Error creating subscribers table: {e}")
             return False
 
-    def add_subscriber(self, user_id: int) -> tuple[bool, str | None]:
+    def add_subscriber(self, user_id: int, first_name: str = None, last_name: str = None, username: str = None) -> tuple[bool, str | None]:
         """Add a new subscriber. Returns (success, error_message)."""
         if not hasattr(self, 'engine') or not self.engine:
             logger.warning("No database connection - cannot add subscriber")
             return False, "No database connection"
         try:
             query = text("""
-                INSERT INTO subscribers (user_id)
-                VALUES (:user_id)
+                INSERT INTO subscribers (user_id, first_name, last_name, username)
+                VALUES (:user_id, :first_name, :last_name, :username)
                 ON CONFLICT (user_id) DO NOTHING
             """)
             with self.engine.connect() as conn:
-                conn.execute(query, {"user_id": user_id})
+                conn.execute(query, {
+                    "user_id": user_id,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "username": username
+                })
                 conn.commit()
             return True, None
         except Exception as e:
             logger.error(f"Error adding subscriber {user_id}: {e}")
             logger.error(traceback.format_exc())
             return False, str(e)
+
+    def update_user_info(self, user_id: int, first_name: str = None, last_name: str = None, username: str = None):
+        """Update a user's first_name, last_name, or username."""
+        if not hasattr(self, 'engine') or not self.engine:
+            logger.warning("No database connection - cannot update user info")
+            return False
+        try:
+            query = text("""
+                UPDATE subscribers
+                SET first_name = COALESCE(:first_name, first_name),
+                    last_name = COALESCE(:last_name, last_name),
+                    username = COALESCE(:username, username)
+                WHERE user_id = :user_id
+            """)
+            with self.engine.connect() as conn:
+                conn.execute(query, {
+                    "user_id": user_id,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "username": username
+                })
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user info for {user_id}: {e}")
+            logger.error(traceback.format_exc())
+            return False
+
+    def increment_quests_completed(self, user_id: int):
+        """Increment quests_completed for a user."""
+        if not hasattr(self, 'engine') or not self.engine:
+            logger.warning("No database connection - cannot increment quests_completed")
+            return False
+        try:
+            query = text("""
+                UPDATE subscribers SET quests_completed = COALESCE(quests_completed, 0) + 1 WHERE user_id = :user_id
+            """)
+            with self.engine.connect() as conn:
+                conn.execute(query, {"user_id": user_id})
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error incrementing quests_completed for {user_id}: {e}")
+            logger.error(traceback.format_exc())
+            return False
+
+    def get_leaderboard(self, limit: int = 10):
+        """Return a list of top users by quests_completed."""
+        if not hasattr(self, 'engine') or not self.engine:
+            logger.warning("No database connection - cannot get leaderboard")
+            return []
+        try:
+            query = text("""
+                SELECT user_id, first_name, username, quests_completed
+                FROM subscribers
+                ORDER BY quests_completed DESC NULLS LAST, user_id ASC
+                LIMIT :limit
+            """)
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {"limit": limit})
+                return result.fetchall()
+        except Exception as e:
+            logger.error(f"Error fetching leaderboard: {e}")
+            logger.error(traceback.format_exc())
+            return []
 
     def set_mood(self, user_id: int, mood: str) -> bool:
         """Set the mood for a user."""

@@ -57,9 +57,14 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sorry, the subscription service is currently unavailable.")
         return
 
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name
+    last_name = user.last_name if hasattr(user, 'last_name') else None
+    username = user.username if hasattr(user, 'username') else None
+
     if not db.is_subscribed(user_id):
-        success, error = db.add_subscriber(user_id)
+        success, error = db.add_subscriber(user_id, first_name, last_name, username)
         if success:
             await update.message.reply_text(
                 "🌟 You're subscribed! You'll receive your first affirmation and quest "
@@ -70,6 +75,7 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Sorry, there was an error subscribing you. Please try again later!\n\nError: {error}"
             )
     else:
+        db.update_user_info(user_id, first_name, last_name, username)
         await update.message.reply_text(
             "✨ You're already subscribed! Use /quest to get a fun permission slip now!"
         )
@@ -102,8 +108,15 @@ async def quest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sorry, the AI service is currently unavailable.")
         return
 
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name
+    last_name = user.last_name if hasattr(user, 'last_name') else None
+    username = user.username if hasattr(user, 'username') else None
+    db.update_user_info(user_id, first_name, last_name, username)
+    db.increment_quests_completed(user_id)
+
     try:
-        user_id = update.effective_user.id
         mood = db.get_mood(user_id) or "Surprise me"
         permission_slip = ai.generate_permission_slip(mood)
         await update.message.reply_text(permission_slip)
@@ -209,7 +222,13 @@ async def setmood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return 1
 
 async def mood_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name
+    last_name = user.last_name if hasattr(user, 'last_name') else None
+    username = user.username if hasattr(user, 'username') else None
+    db.update_user_info(user_id, first_name, last_name, username)
+
     mood = update.message.text
     if mood not in MOODS:
         await update.message.reply_text("Please choose a mood using the buttons.")
@@ -217,6 +236,23 @@ async def mood_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.set_mood(user_id, mood)
     await update.message.reply_text(f"Your mood is now set to: {mood}", reply_markup=ReplyKeyboardMarkup([["/quest", "/setmood"]], resize_keyboard=True))
     return ConversationHandler.END
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Display the top users by quests completed."""
+    if not db:
+        await update.message.reply_text("Leaderboard is currently unavailable.")
+        return
+    leaderboard = db.get_leaderboard(limit=10)
+    if not leaderboard:
+        await update.message.reply_text("No leaderboard data yet!")
+        return
+    lines = ["🏆 <b>Quest Leaderboard</b> 🏆\n"]
+    for idx, row in enumerate(leaderboard, 1):
+        user_id, first_name, username, quests_completed = row
+        display = f"@{username}" if username else (first_name or "Anonymous")
+        lines.append(f"{idx}. {display}: <b>{quests_completed or 0}</b> quests")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
 
 def main():
     """Start the bot."""
@@ -231,6 +267,7 @@ def main():
     application.add_handler(CommandHandler("quest", quest))
     application.add_handler(CommandHandler("today", today))
     application.add_handler(CommandHandler("dbstatus", db_status))
+    application.add_handler(CommandHandler("leaderboard", leaderboard))
 
     # Mood selection conversation handler
     mood_conv_handler = ConversationHandler(
