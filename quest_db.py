@@ -26,6 +26,7 @@ class QuestBotDB:
             logger.warning("No database connection - cannot create subscribers table")
             return False
         try:
+            logger.info("Attempting to create subscribers table if not exists...")
             query = text("""
                 CREATE TABLE IF NOT EXISTS subscribers (
                     user_id BIGINT PRIMARY KEY,
@@ -35,14 +36,16 @@ class QuestBotDB:
                     last_name TEXT,
                     username TEXT,
                     quests_completed INTEGER DEFAULT 0
-                )
+                );
             """)
             with self.engine.connect() as conn:
                 conn.execute(query)
                 conn.commit()
+            logger.info("Subscribers table checked/created successfully.")
             return True
         except Exception as e:
             logger.error(f"Error creating subscribers table: {e}")
+            logger.error(traceback.format_exc())
             return False
 
     def ensure_subscribers_schema(self):
@@ -129,6 +132,7 @@ class QuestBotDB:
             logger.warning("No database connection - cannot increment quests_completed")
             return False
         try:
+            logger.info(f"Incrementing quests_completed for user_id {user_id}...")
             query = text("""
                 INSERT INTO subscribers (user_id, quests_completed)
                 VALUES (:user_id, 1)
@@ -137,6 +141,7 @@ class QuestBotDB:
             with self.engine.connect() as conn:
                 conn.execute(query, {"user_id": user_id})
                 conn.commit()
+            logger.info(f"quests_completed incremented for user_id {user_id}.")
             return True
         except Exception as e:
             logger.error(f"Error incrementing quests_completed for {user_id}: {e}")
@@ -149,11 +154,17 @@ class QuestBotDB:
             logger.warning("No database connection - cannot fetch quests_completed")
             return 0
         try:
+            logger.info(f"Fetching quests_completed for user_id {user_id}...")
             query = text("SELECT quests_completed FROM subscribers WHERE user_id = :user_id")
             with self.engine.connect() as conn:
                 result = conn.execute(query, {"user_id": user_id})
                 row = result.fetchone()
-                return row[0] if row and row[0] is not None else 0
+                if row and row[0] is not None:
+                    logger.info(f"quests_completed for user_id {user_id}: {row[0]}")
+                    return row[0]
+                else:
+                    logger.info(f"No quests_completed found for user_id {user_id}, returning 0.")
+                    return 0
         except Exception as e:
             logger.error(f"Error fetching quests_completed for {user_id}: {e}")
             logger.error(traceback.format_exc())
