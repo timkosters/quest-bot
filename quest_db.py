@@ -101,7 +101,9 @@ class QuestBotDB:
             return False
         try:
             query = text("""
-                UPDATE subscribers SET quests_completed = COALESCE(quests_completed, 0) + 1 WHERE user_id = :user_id
+                INSERT INTO subscribers (user_id, quests_completed)
+                VALUES (:user_id, 1)
+                ON CONFLICT (user_id) DO UPDATE SET quests_completed = subscribers.quests_completed + 1
             """)
             with self.engine.connect() as conn:
                 conn.execute(query, {"user_id": user_id})
