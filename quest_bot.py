@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler
 from ai_interactions import AIInteractions
+from quest_db import QuestBotDB
 
 # Load environment variables
 load_dotenv()
@@ -16,15 +17,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize AI
+# Initialize AI and DB
 try:
     ai = AIInteractions()
+    db = QuestBotDB()
+    db.create_subscribers_table()  # Ensure the subscribers table exists
 except Exception as e:
-    logger.error(f"Failed to initialize AI: {e}")
+    logger.error(f"Failed to initialize services: {e}")
     ai = None
-
-# Store subscribers
-subscribers = set()
+    db = None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
@@ -52,13 +53,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Subscribe to daily messages."""
+    if not db:
+        await update.message.reply_text("Sorry, the subscription service is currently unavailable.")
+        return
+
     user_id = update.effective_user.id
-    if user_id not in subscribers:
-        subscribers.add(user_id)
-        await update.message.reply_text(
-            "🌟 You're subscribed! You'll receive your first affirmation and quest "
-            "tomorrow at 9 AM.\n\nCan't wait? Use /quest to get a fun permission slip right now!"
-        )
+    if not db.is_subscribed(user_id):
+        if db.add_subscriber(user_id):
+            await update.message.reply_text(
+                "🌟 You're subscribed! You'll receive your first affirmation and quest "
+                "tomorrow at 9 AM.\n\nCan't wait? Use /quest to get a fun permission slip right now!"
+            )
+        else:
+            await update.message.reply_text(
+                "Sorry, there was an error subscribing you. Please try again later!"
+            )
     else:
         await update.message.reply_text(
             "✨ You're already subscribed! Use /quest to get a fun permission slip now!"
@@ -66,13 +75,21 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Unsubscribe from daily messages."""
+    if not db:
+        await update.message.reply_text("Sorry, the subscription service is currently unavailable.")
+        return
+
     user_id = update.effective_user.id
-    if user_id in subscribers:
-        subscribers.remove(user_id)
-        await update.message.reply_text(
-            "👋 You've been unsubscribed. You'll no longer receive daily messages.\n"
-            "You can resubscribe anytime with /subscribe!"
-        )
+    if db.is_subscribed(user_id):
+        if db.remove_subscriber(user_id):
+            await update.message.reply_text(
+                "👋 You've been unsubscribed. You'll no longer receive daily messages.\n"
+                "You can resubscribe anytime with /subscribe!"
+            )
+        else:
+            await update.message.reply_text(
+                "Sorry, there was an error unsubscribing you. Please try again later!"
+            )
     else:
         await update.message.reply_text(
             "You're not currently subscribed to daily messages."
@@ -110,15 +127,16 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_daily_messages(context: ContextTypes.DEFAULT_TYPE):
     """Send daily affirmations and quests to all subscribers."""
-    if not ai:
-        logger.error("AI service is not available")
-        return
-
-    if not subscribers:
-        logger.info("No subscribers to send messages to")
+    if not ai or not db:
+        logger.error("Required services are not available")
         return
 
     try:
+        subscribers = db.get_all_subscribers()
+        if not subscribers:
+            logger.info("No subscribers to send messages to")
+            return
+
         daily_message = ai.generate_daily_message()
         for user_id in subscribers:
             try:
@@ -146,6 +164,33 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text)
 
+async def db_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check database status and subscriber count."""
+    logger.info("Received /dbstatus command")
+    if not db:
+        logger.warning("Database connection is not available")
+        await update.message.reply_text("❌ Database connection is not available")
+        return
+
+    try:
+        logger.info("Attempting to get subscriber count")
+        # Test database connection by getting subscriber count
+        subscriber_count = len(db.get_all_subscribers())
+        logger.info(f"Successfully got subscriber count: {subscriber_count}")
+        await update.message.reply_text(
+            "✅ Database connection is working!\n\n"
+            f"📊 Current subscriber count: {subscriber_count}\n\n"
+            "The database will store:\n"
+            "• Subscriber Telegram IDs\n"
+            "• When each person subscribed\n\n"
+            "This helps the bot remember subscribers even if it restarts!"
+        )
+    except Exception as e:
+        logger.error(f"Error checking database status: {e}")
+        await update.message.reply_text(
+            "❌ Error connecting to database. Please try again later!"
+        )
+
 def main():
     """Start the bot."""
     # Create the Application
@@ -158,6 +203,7 @@ def main():
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
     application.add_handler(CommandHandler("quest", quest))
     application.add_handler(CommandHandler("today", today))
+    application.add_handler(CommandHandler("dbstatus", db_status))
 
     # Set up the daily job (9 AM)
     job_queue = application.job_queue
